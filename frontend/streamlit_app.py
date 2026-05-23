@@ -1,9 +1,12 @@
 import os
+from io import BytesIO
 
 import requests
 import streamlit as st
+from PIL import Image
 
 DEFAULT_API_URL = "http://localhost:8000/analyze"
+PREVIEW_MAX_WIDTH = 420
 PROMPT_PRESETS = {
     "Default coach": "",
     "Continue or rest": "Focus mainly on whether I should continue, slow down, or rest now.",
@@ -14,6 +17,17 @@ PROMPT_PRESETS = {
     "Full detailed coach": "Give a more detailed coach recommendation covering movement, food, water, mood, rest, and sleep.",
     "Custom": "",
 }
+
+
+def preview_image(uploaded_file, max_width: int = PREVIEW_MAX_WIDTH) -> Image.Image | None:
+    try:
+        image = Image.open(uploaded_file)
+        image.thumbnail((max_width, max_width), Image.Resampling.LANCZOS)
+        return image.copy()
+    except Exception:
+        return None
+    finally:
+        uploaded_file.seek(0)
 
 
 def render_score(label: str, value: int) -> None:
@@ -34,8 +48,6 @@ def render_analysis_card(analysis: dict[str, object]) -> None:
     creativity = int(scores.get("creativity", 5))
     energy = int(scores.get("energy", 5))
     focus = int(scores.get("focus", 5))
-    xp = max(10, min(100, (creativity + energy + focus) * 3))
-    level = max(1, xp // 20)
 
     st.markdown(
         """
@@ -109,8 +121,6 @@ def render_analysis_card(analysis: dict[str, object]) -> None:
     with col3:
         render_score("Focus", focus)
 
-    st.markdown(f"**XP:** {xp} | **Coach level:** Lv.{level}")
-
     st.markdown('<div class="mini-card">', unsafe_allow_html=True)
     st.markdown("**Tips**")
     for tip in tips:
@@ -165,10 +175,11 @@ uploaded_image = st.file_uploader(
 )
 
 if uploaded_image:
-    if uploaded_image.type.lower().endswith(("heic", "heif")):
-        st.info("HEIC photo selected. Preview may not show in the browser, but analysis can run.")
+    preview = preview_image(uploaded_image)
+    if preview:
+        st.image(preview, width=min(preview.width, PREVIEW_MAX_WIDTH))
     else:
-        st.image(uploaded_image, use_container_width=True)
+        st.info("Photo selected. Preview may not show in the browser, but analysis can run.")
 
 analyze = st.button("Analyze", type="primary", disabled=uploaded_image is None, use_container_width=True)
 if analyze and uploaded_image:
