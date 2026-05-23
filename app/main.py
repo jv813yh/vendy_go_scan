@@ -23,6 +23,7 @@ def health() -> dict[str, str]:
 async def analyze(
     image: UploadFile = File(...),
     prompt: str = Form(""),
+    mode: str = Form("During hike"),
 ) -> dict[str, object]:
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Upload must be an image.")
@@ -31,5 +32,5 @@ async def analyze(
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Uploaded image is empty.")
 
-    result = analyze_hiker(image_bytes, image.content_type, prompt.strip())
+    result = analyze_hiker(image_bytes, image.content_type, prompt.strip(), mode.strip())
     return {"result": result}

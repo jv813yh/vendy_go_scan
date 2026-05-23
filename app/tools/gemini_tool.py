@@ -13,6 +13,14 @@ from app.tools.vision_tool import VisionFeatures
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_FALLBACK_MODELS = ["gemini-2.5-flash-lite"]
+DEFAULT_MODE = "During hike"
+VALID_MODES = {
+    "Before hike",
+    "During hike",
+    "After hike",
+    "Gym / training",
+    "Cottage / recovery",
+}
 
 load_dotenv()
 
@@ -40,6 +48,11 @@ def _log_model_event(event: dict[str, object]) -> None:
         **event,
     }
     _model_logger().info(json.dumps(event_with_time, ensure_ascii=False))
+
+
+def normalize_mode(mode: str) -> str:
+    clean_mode = mode.strip()
+    return clean_mode if clean_mode in VALID_MODES else DEFAULT_MODE
 
 
 def _model_candidates() -> list[str]:
@@ -71,10 +84,76 @@ def _normalize_list(value: Any, limit: int) -> list[str]:
     return items[:limit]
 
 
-def _normalize_analysis(data: dict[str, Any]) -> dict[str, Any]:
-    scores = data.get("scores") if isinstance(data.get("scores"), dict) else {}
+def _normalize_mapping(value: Any, defaults: dict[str, str]) -> dict[str, str]:
+    source = value if isinstance(value, dict) else {}
     return {
-        "summary": str(data.get("summary", "")).strip(),
+        key: str(source.get(key) or default).strip()
+        for key, default in defaults.items()
+    }
+
+
+def default_prescription(mode: str) -> dict[str, str]:
+    if mode == "Gym / training":
+        return {
+            "water": "Pár dúškov teraz, potom priebežne počas tréningu.",
+            "food": "Po tréningu daj proteín a normálne jedlo, cukry len ak energia padá.",
+            "pace": "Kontrolované série, technika pred egom.",
+            "rest": "Medzi sériami si daj pokojný oddych.",
+            "sleep": "Večer nepodceň spánok, svaly rastú mimo činky.",
+        }
+    if mode == "Cottage / recovery":
+        return {
+            "water": "Daj si vodu aj medzi odmenami.",
+            "food": "Niečo teplé a dobré padne vhod, telo nie je len batéria.",
+            "pace": "Tempo pokojné, dnes vyhráva regenerácia.",
+            "rest": "Sadni si, vylož nohy a nechaj systém dobehnúť.",
+            "sleep": "Dnes choď spať rozumne, zajtra sa ti nohy poďakujú.",
+        }
+    if mode == "After hike":
+        return {
+            "water": "Doplň vodu a minerály.",
+            "food": "Daj kombináciu sacharidov a bielkovín.",
+            "pace": "Už nepretekaj, prejdi do režimu návratu.",
+            "rest": "Krátky strečing a nohy hore.",
+            "sleep": "Spánok dnes ber ako súčasť tréningu.",
+        }
+    if mode == "Before hike":
+        return {
+            "water": "Napij sa ešte pred štartom.",
+            "food": "Zober snack na rýchlu energiu.",
+            "pace": "Začni ľahko, prvé minúty nie sú finále.",
+            "rest": "Skontroluj výstroj bez stresu.",
+            "sleep": "Ak si spal málo, naplánuj kratšiu trasu.",
+        }
+    return {
+        "water": "Daj si pár dúškov vody.",
+        "food": "Ak energia padá, doplň niečo malé alebo sladké.",
+        "pace": "Pokračuj ľahkým tempom a sleduj dych.",
+        "rest": "Pri únave si daj krátku pauzu.",
+        "sleep": "Večer nezabudni na spánok, regenerácia je tichý tréner.",
+    }
+
+
+def default_adventure_card(mode: str, summary: str) -> dict[str, str]:
+    return {
+        "title": "VendyGoScan Adventure Check",
+        "subtitle": summary or "Rýchla kontrola energie, tempa a ďalšieho kroku.",
+        "vibe": mode,
+        "share_text": summary or "VendyGoScan mi dal mini plán na ďalší krok.",
+    }
+
+
+def _normalize_analysis(data: dict[str, Any], mode: str) -> dict[str, Any]:
+    scores = data.get("scores") if isinstance(data.get("scores"), dict) else {}
+    summary = str(data.get("summary", "")).strip()
+    prescription = _normalize_mapping(data.get("prescription"), default_prescription(mode))
+    adventure_card = _normalize_mapping(
+        data.get("adventure_card"),
+        default_adventure_card(mode, summary),
+    )
+    return {
+        "mode": normalize_mode(str(data.get("mode") or mode)),
+        "summary": summary,
         "scores": {
             "creativity": _normalize_score(scores.get("creativity"), 6),
             "energy": _normalize_score(scores.get("energy"), 6),
@@ -82,40 +161,50 @@ def _normalize_analysis(data: dict[str, Any]) -> dict[str, Any]:
         },
         "badges": _normalize_list(data.get("badges"), 4),
         "tips": _normalize_list(data.get("tips"), 5),
+        "prescription": prescription,
         "next_step": str(data.get("next_step", "")).strip(),
         "challenge": str(data.get("challenge", "")).strip(),
         "killer_insight": str(data.get("killer_insight", "")).strip(),
-        "share_text": str(data.get("share_text", "")).strip(),
+        "share_text": str(data.get("share_text") or adventure_card["share_text"]).strip(),
+        "adventure_card": adventure_card,
     }
 
 
-def _analysis_from_text(text: str) -> dict[str, Any]:
+def _analysis_from_text(text: str, mode: str) -> dict[str, Any]:
+    summary = text.strip()
     return {
-        "summary": text,
+        "mode": mode,
+        "summary": summary,
         "scores": {"creativity": 5, "energy": 5, "focus": 5},
-        "badges": ["Coach note"],
-        "tips": [text],
+        "badges": ["Coach note", mode],
+        "tips": [summary],
+        "prescription": default_prescription(mode),
         "next_step": "Skús fotku znova alebo pridaj krátku poznámku, na čo sa má tréner zamerať.",
         "challenge": "Mini výzva: daj si 5 hlbokých nádychov a rozhodni sa pokojne.",
         "killer_insight": "Ak máš spraviť len jednu vec: zastav sa na chvíľu a skontroluj vodu, dych a energiu.",
-        "share_text": text,
+        "share_text": summary,
+        "adventure_card": default_adventure_card(mode, summary),
     }
 
 
-def unavailable_analysis() -> dict[str, Any]:
+def unavailable_analysis(mode: str = DEFAULT_MODE) -> dict[str, Any]:
+    summary = "Tréner je teraz preťažený, ale stále vieme spraviť rozumný mini plán."
     return {
-        "summary": "Tréner je teraz preťažený, ale stále vieme spraviť rozumný mini plán.",
+        "mode": mode,
+        "summary": summary,
         "scores": {"creativity": 4, "energy": 4, "focus": 6},
-        "badges": ["Model busy", "Skús znova"],
+        "badges": ["Model busy", "Skús znova", mode],
         "tips": [
             "Gemini je momentálne zaneprázdnený alebo rate-limitovaný.",
             "Skús analýzu zopakovať o chvíľu.",
             "Ak si na túre: voda, krátka pauza a niečo malé pod zub sú bezpečná klasika.",
         ],
+        "prescription": default_prescription(mode),
         "next_step": "Stlač Analyze ešte raz o pár sekúnd.",
         "challenge": "Kým čakáš: 30 sekúnd ramená dozadu, nádych, výdych. Malý reset, veľký efekt.",
         "killer_insight": "Ak máš spraviť len jednu vec: daj si vodu a skús analýzu znova o chvíľu.",
         "share_text": "VendyGoScan tréner si dáva krátky oddych. Skúsim znova o chvíľu.",
+        "adventure_card": default_adventure_card(mode, summary),
     }
 
 
@@ -124,7 +213,9 @@ def ask_gemini_with_image(
     mime_type: str,
     features: VisionFeatures,
     custom_prompt: str = "",
+    mode: str = DEFAULT_MODE,
 ) -> dict[str, Any] | None:
+    selected_mode = normalize_mode(mode)
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or api_key == "replace-with-your-real-key":
         _log_model_event(
@@ -132,6 +223,7 @@ def ask_gemini_with_image(
                 "event": "missing_api_key",
                 "features": features.to_dict(),
                 "custom_prompt": custom_prompt,
+                "mode": selected_mode,
             }
         )
         return None
@@ -150,25 +242,39 @@ def ask_gemini_with_image(
         "only from visible cues. Consider face, expression, eyes, mood, posture, "
         "shoulders, hands, arms, legs, feet, balance, clothing, backpack load, "
         "apparent energy, readiness to continue, and the visible environment.\n\n"
-        "Adapt advice to visible context. Gym: controlled training, enough protein, "
-        "hydration, and do not overdo fast carbohydrates unless quick energy is needed. "
-        "Hiking/sun: sun, shade, water, pace, electrolytes, and quick sugars when energy "
-        "looks low. Fresh on trail: encourage steady tempo. Tired on trail: break, water, "
-        "sugars, and food before pushing on. Cottage/mountain hut/post-hike stop: playful "
-        "food suggestion; optionally mention beer or raspberry soft drink as a joke/choice, "
-        "but never pressure alcohol. Unsuitable clothes: mention layers, shoes, rain/sun "
-        "protection, or changing plans.\n\n"
+        f"Selected activity mode: {selected_mode}. Use this mode strongly.\n"
+        "Mode rules: Before hike means readiness, clothing, pack, water, snack, and route prep. "
+        "During hike means continue/rest decision, pace, sugar, water, shade, and safety. "
+        "After hike means recovery, protein/carbs, stretching, warm food, and sleep. "
+        "Gym / training means controlled training, enough protein, hydration, and avoiding "
+        "unnecessary fast carbohydrates unless quick energy is needed. Cottage / recovery "
+        "means food, rest, playful cottage mood, optional beer or raspberry soft drink as "
+        "a joke/choice, and never pressuring alcohol.\n\n"
         "Return ONLY valid JSON, no markdown fences. All user-facing string values must "
         "be in Slovak. Schema:\n"
         "{\n"
+        "  \"mode\": \"one of the provided mode labels\",\n"
         "  \"summary\": \"one sentence\",\n"
         "  \"scores\": {\"creativity\": 0-10, \"energy\": 0-10, \"focus\": 0-10},\n"
         "  \"badges\": [\"2-4 short badges\"],\n"
         "  \"tips\": [\"3-5 practical bullet tips\"],\n"
+        "  \"prescription\": {\n"
+        "    \"water\": \"concrete water advice\",\n"
+        "    \"food\": \"concrete food advice\",\n"
+        "    \"pace\": \"pace or training intensity advice\",\n"
+        "    \"rest\": \"rest or recovery advice\",\n"
+        "    \"sleep\": \"sleep advice\"\n"
+        "  },\n"
         "  \"next_step\": \"one concrete action\",\n"
         "  \"challenge\": \"one small fun challenge\",\n"
         "  \"killer_insight\": \"Ak máš spraviť len jednu vec: ...\",\n"
-        "  \"share_text\": \"short shareable result\"\n"
+        "  \"share_text\": \"short shareable result\",\n"
+        "  \"adventure_card\": {\n"
+        "    \"title\": \"short card title\",\n"
+        "    \"subtitle\": \"short card subtitle\",\n"
+        "    \"vibe\": \"short vibe label\",\n"
+        "    \"share_text\": \"short shareable card text\"\n"
+        "  }\n"
         "}\n\n"
         "Always make killer_insight the strongest, simplest final action. Be supportive, "
         "honest, varied, and lightly funny. Do not make medical diagnoses, identify the "
@@ -197,6 +303,7 @@ def ask_gemini_with_image(
                     "image_bytes": len(image_bytes),
                     "features": features.to_dict(),
                     "custom_prompt": custom_prompt,
+                    "mode": selected_mode,
                     "error_type": type(exc).__name__,
                     "error": str(exc),
                 }
@@ -213,6 +320,7 @@ def ask_gemini_with_image(
                     "image_bytes": len(image_bytes),
                     "features": features.to_dict(),
                     "custom_prompt": custom_prompt,
+                    "mode": selected_mode,
                 }
             )
             continue
@@ -222,13 +330,14 @@ def ask_gemini_with_image(
             cleaned_text = cleaned_text[4:].strip()
 
         try:
-            analysis = _normalize_analysis(json.loads(cleaned_text))
+            analysis = _normalize_analysis(json.loads(cleaned_text), selected_mode)
         except json.JSONDecodeError:
-            analysis = _analysis_from_text(text.strip().strip('"'))
+            analysis = _analysis_from_text(text.strip().strip('"'), selected_mode)
             _log_model_event(
                 {
                     "event": "json_parse_fallback",
                     "model": model,
+                    "mode": selected_mode,
                     "response_text": text,
                     "analysis": analysis,
                 }
@@ -242,10 +351,11 @@ def ask_gemini_with_image(
                     "image_bytes": len(image_bytes),
                     "features": features.to_dict(),
                     "custom_prompt": custom_prompt,
+                    "mode": selected_mode,
                     "analysis": analysis,
                 }
             )
 
         return analysis
 
-    return unavailable_analysis()
+    return unavailable_analysis(selected_mode)

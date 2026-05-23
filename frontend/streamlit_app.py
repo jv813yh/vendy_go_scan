@@ -1,5 +1,4 @@
 import os
-from io import BytesIO
 
 import requests
 import streamlit as st
@@ -7,6 +6,13 @@ from PIL import Image
 
 DEFAULT_API_URL = "http://localhost:8000/analyze"
 PREVIEW_MAX_WIDTH = 420
+ACTIVITY_MODES = [
+    "Before hike",
+    "During hike",
+    "After hike",
+    "Gym / training",
+    "Cottage / recovery",
+]
 PROMPT_PRESETS = {
     "Default coach": "",
     "Continue or rest": "Focus mainly on whether I should continue, slow down, or rest now.",
@@ -35,15 +41,34 @@ def render_score(label: str, value: int) -> None:
     st.progress(max(0, min(value, 10)) / 10)
 
 
+def render_prescription_item(label: str, value: str) -> None:
+    st.markdown(
+        f"""
+        <div class="prescription-row">
+            <span class="prescription-label">{label}</span>
+            <span class="prescription-value">{value}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_analysis_card(analysis: dict[str, object]) -> None:
     scores = analysis.get("scores") if isinstance(analysis.get("scores"), dict) else {}
     badges = analysis.get("badges") if isinstance(analysis.get("badges"), list) else []
     tips = analysis.get("tips") if isinstance(analysis.get("tips"), list) else []
+    prescription = analysis.get("prescription") if isinstance(analysis.get("prescription"), dict) else {}
+    adventure_card = analysis.get("adventure_card") if isinstance(analysis.get("adventure_card"), dict) else {}
+    mode = str(analysis.get("mode") or "")
     summary = str(analysis.get("summary") or "")
     next_step = str(analysis.get("next_step") or "")
     challenge = str(analysis.get("challenge") or "")
     killer_insight = str(analysis.get("killer_insight") or "")
-    share_text = str(analysis.get("share_text") or summary)
+    share_text = str(
+        adventure_card.get("share_text")
+        or analysis.get("share_text")
+        or summary
+    )
 
     creativity = int(scores.get("creativity", 5))
     energy = int(scores.get("energy", 5))
@@ -83,12 +108,55 @@ def render_analysis_card(analysis: dict[str, object]) -> None:
             font-size: 0.82rem;
             font-weight: 600;
         }
-        .mini-card {
+        .mini-card, .prescription-card {
             border-radius: 12px;
             padding: 12px;
             background: #ffffff;
             border: 1px solid #e1efe6;
             margin-top: 10px;
+        }
+        .prescription-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 8px 0;
+            border-bottom: 1px solid #edf5ef;
+        }
+        .prescription-row:last-child { border-bottom: 0; }
+        .prescription-label {
+            min-width: 72px;
+            color: #1d5b38;
+            font-weight: 700;
+        }
+        .prescription-value {
+            color: #2c3f34;
+            text-align: right;
+        }
+        .adventure-card {
+            border-radius: 14px;
+            padding: 16px;
+            background: linear-gradient(135deg, #173d2b 0%, #246d45 100%);
+            color: #ffffff;
+            margin-top: 12px;
+        }
+        .adventure-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .adventure-subtitle {
+            color: #e9fff0;
+            line-height: 1.45;
+            margin-bottom: 10px;
+        }
+        .adventure-vibe {
+            display: inline-block;
+            background: rgba(255,255,255,0.16);
+            border: 1px solid rgba(255,255,255,0.28);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
         }
         .killer-card {
             border-radius: 12px;
@@ -107,9 +175,11 @@ def render_analysis_card(analysis: dict[str, object]) -> None:
     st.markdown('<div class="coach-card">', unsafe_allow_html=True)
     st.markdown('<div class="coach-title">VendyGoScan Coach</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="coach-summary">{summary}</div>', unsafe_allow_html=True)
-    if badges:
+
+    badge_values = [mode, *badges] if mode else badges
+    if badge_values:
         st.markdown(
-            "".join(f'<span class="badge">{badge}</span>' for badge in badges),
+            "".join(f'<span class="badge">{badge}</span>' for badge in badge_values if badge),
             unsafe_allow_html=True,
         )
 
@@ -120,6 +190,15 @@ def render_analysis_card(analysis: dict[str, object]) -> None:
         render_score("Energy", energy)
     with col3:
         render_score("Focus", focus)
+
+    st.markdown('<div class="prescription-card">', unsafe_allow_html=True)
+    st.markdown("**Prescription**")
+    render_prescription_item("Water", str(prescription.get("water") or "Daj si pár dúškov vody."))
+    render_prescription_item("Food", str(prescription.get("food") or "Daj si niečo malé podľa energie."))
+    render_prescription_item("Pace", str(prescription.get("pace") or "Drž ľahké tempo."))
+    render_prescription_item("Rest", str(prescription.get("rest") or "Pri únave si daj krátku pauzu."))
+    render_prescription_item("Sleep", str(prescription.get("sleep") or "Večer dopraj telu spánok."))
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="mini-card">', unsafe_allow_html=True)
     st.markdown("**Tips**")
@@ -142,14 +221,56 @@ def render_analysis_card(analysis: dict[str, object]) -> None:
     if killer_insight:
         st.markdown(f'<div class="killer-card">🧠 {killer_insight}</div>', unsafe_allow_html=True)
 
+    st.markdown(
+        f"""
+        <div class="adventure-card">
+            <div class="adventure-title">{adventure_card.get("title") or "Adventure Check"}</div>
+            <div class="adventure-subtitle">{adventure_card.get("subtitle") or summary}</div>
+            <span class="adventure-vibe">{adventure_card.get("vibe") or mode or "Coach vibe"}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.download_button(
-        "Share result",
+        "Share adventure card",
         data=share_text,
-        file_name="vendygoscan-result.txt",
+        file_name="vendygoscan-adventure-card.txt",
         mime="text/plain",
         use_container_width=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
+
+
+def offline_analysis(api_url: str, exc: requests.RequestException) -> dict[str, object]:
+    return {
+        "mode": "During hike",
+        "summary": "Backend alebo model teraz neodpovedá, ale panika nie je tréningový plán.",
+        "scores": {"creativity": 4, "energy": 4, "focus": 5},
+        "badges": ["Offline", "Skús znova"],
+        "tips": [
+            f"API endpoint: {api_url}",
+            f"Detail chyby: {exc}",
+            "Na Renderi má API endpoint zostať prázdny v env alebo byť http://127.0.0.1:8000/analyze.",
+        ],
+        "prescription": {
+            "water": "Daj si vodu, kým to opravíme.",
+            "food": "Ak si hladný, malý snack je povolený debugging.",
+            "pace": "Technické tempo: pomaly a pokojne.",
+            "rest": "Daj si krátky reset.",
+            "sleep": "Nenechaj deploy pokaziť spánok.",
+        },
+        "next_step": "Skontroluj Render logs a redeployni posledný commit.",
+        "challenge": "30-sekundový reset: narovnaj sa a urob tri pokojné nádychy.",
+        "killer_insight": "Ak máš spraviť len jednu vec: pozri Render logs, či backend hlási 'FastAPI backend is ready.'",
+        "share_text": "VendyGoScan je dočasne offline. Skúsim znova.",
+        "adventure_card": {
+            "title": "Offline Adventure Check",
+            "subtitle": "Tréner si práve šnuruje topánky v cloude.",
+            "vibe": "Render check",
+            "share_text": "VendyGoScan je dočasne offline. Skúsim znova.",
+        },
+    }
 
 
 st.set_page_config(page_title="VendyGoScan", page_icon="V", layout="centered")
@@ -169,6 +290,12 @@ with st.expander("Settings", expanded=False):
             placeholder="e.g. Focus on sleep and recovery.",
         )
 
+selected_mode = st.selectbox(
+    "Activity mode",
+    options=ACTIVITY_MODES,
+    index=ACTIVITY_MODES.index("During hike"),
+)
+
 uploaded_image = st.file_uploader(
     "Upload photo",
     type=["jpg", "jpeg", "png", "webp", "heic", "heif"],
@@ -186,7 +313,7 @@ if analyze and uploaded_image:
     files = {"image": (uploaded_image.name, uploaded_image.getvalue(), uploaded_image.type)}
     prompt_parts = [PROMPT_PRESETS[preset_label], custom_prompt.strip()]
     combined_prompt = "\n".join(part for part in prompt_parts if part)
-    data = {"prompt": combined_prompt}
+    data = {"prompt": combined_prompt, "mode": selected_mode}
     with st.spinner("Coach is checking the photo..."):
         try:
             response = requests.post(api_url, files=files, data=data, timeout=30)
@@ -197,30 +324,29 @@ if analyze and uploaded_image:
             else:
                 render_analysis_card(
                     {
+                        "mode": selected_mode,
                         "summary": str(result),
                         "scores": {"creativity": 5, "energy": 5, "focus": 5},
                         "badges": ["Coach note"],
                         "tips": [str(result)],
+                        "prescription": {
+                            "water": "Daj si pár dúškov vody.",
+                            "food": "Daj si niečo malé podľa energie.",
+                            "pace": "Drž ľahké tempo.",
+                            "rest": "Pri únave si daj krátku pauzu.",
+                            "sleep": "Večer dopraj telu spánok.",
+                        },
                         "next_step": "Skús ďalšiu fotku alebo pridaj inštrukciu v Settings.",
                         "challenge": "Mini výzva: 10 drepov alebo pohár vody. Vyber si múdro.",
                         "killer_insight": "Ak máš spraviť len jednu vec: daj si vodu a skús lepšiu fotku.",
                         "share_text": str(result),
+                        "adventure_card": {
+                            "title": "Adventure Check",
+                            "subtitle": str(result),
+                            "vibe": selected_mode,
+                            "share_text": str(result),
+                        },
                     }
                 )
         except requests.RequestException as exc:
-            render_analysis_card(
-                {
-                    "summary": "Backend alebo model teraz neodpovedá, ale panika nie je tréningový plán.",
-                    "scores": {"creativity": 4, "energy": 4, "focus": 5},
-                    "badges": ["Offline", "Skús znova"],
-                    "tips": [
-                        f"API endpoint: {api_url}",
-                        f"Detail chyby: {exc}",
-                        "Na Renderi má API endpoint zostať prázdny v env alebo byť http://127.0.0.1:8000/analyze.",
-                    ],
-                    "next_step": "Skontroluj Render logs a redeployni posledný commit.",
-                    "challenge": "30-sekundový reset: narovnaj sa a urob tri pokojné nádychy.",
-                    "killer_insight": "Ak máš spraviť len jednu vec: pozri Render logs, či backend hlási 'FastAPI backend is ready.'",
-                    "share_text": "VendyGoScan je dočasne offline. Skúsim znova.",
-                }
-            )
+            render_analysis_card(offline_analysis(api_url, exc))

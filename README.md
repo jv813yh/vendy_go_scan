@@ -11,7 +11,6 @@ Local MVP for uploading a hiker photo and receiving a short Slovak coach recomme
 - Vision: OpenCV Haar cascades for a local hint only.
 - Gemini receives the uploaded image directly; local vision output is only extra context.
 - Prompt role: friendly outdoor trainer who checks visible face, posture, hands, legs, feet, mood, energy, clothing, environment, and overall readiness.
-- Local tunnel: ngrok with `ngrok http 8502`.
 - Weekend deploy: Render Docker web service.
 
 ## Setup
@@ -65,7 +64,7 @@ Phone -> ngrok -> Streamlit :8502 -> FastAPI :8000 -> Gemini
 
 ## Deploy To Render
 
-Render is a good weekend option because it can build this repo from the included `Dockerfile`. The container starts both services:
+Render builds this repo from the included `Dockerfile`. The container starts both services:
 
 - FastAPI internally on `8000`
 - Streamlit publicly on Render's `$PORT`
@@ -74,7 +73,7 @@ The public Render URL opens the Streamlit app. Streamlit calls FastAPI inside th
 
 You do **not** start the backend locally when using Render. Render runs the Docker container, and `scripts/start_render.sh` starts both FastAPI and Streamlit inside that container.
 
-### Option A: Simple Render Deploy
+### Simple Render Deploy
 
 1. Push this repo to GitHub.
 2. In Render, create a new **Web Service**.
@@ -89,10 +88,6 @@ GEMINI_FALLBACK_MODELS=gemini-2.5-flash-lite
 VENDYGOSCAN_LOG_DIR=logs
 ```
 
-6. Deploy.
-
-You do not need ngrok after Render deploys the app.
-
 Do not set `VENDYGOSCAN_API_URL` on Render unless you are debugging. If you set it, use:
 
 ```env
@@ -105,26 +100,6 @@ If the frontend opens but analysis says the backend is offline, open Render **Lo
 FastAPI backend is ready.
 Starting Streamlit frontend on port ...
 ```
-
-If you do not see `FastAPI backend is ready.`, the backend crashed during startup and the Render logs should show the Python error.
-
-### Option B: GitHub Actions + Render Deploy Hook
-
-The workflow at `.github/workflows/deploy.yml` builds a Docker image and pushes it to GitHub Container Registry.
-
-To trigger Render from GitHub Actions:
-
-1. Create a Render service.
-2. Copy the Render deploy hook URL.
-3. In GitHub repo settings, add a secret:
-
-```text
-RENDER_DEPLOY_HOOK=your-render-deploy-hook-url
-```
-
-4. Push to `main` or run the workflow manually.
-
-For the fastest weekend path, use **Option A** first. Add the GitHub Actions deploy hook later if you want a more automated pipeline.
 
 ## Docker Local Test
 
@@ -184,12 +159,14 @@ Multipart form fields:
 
 - `image`: jpg, jpeg, png, webp, heic, or heif
 - `prompt`: optional extra instruction for this photo
+- `mode`: optional activity mode; default is `During hike`
 
 Response:
 
 ```json
 {
   "result": {
+    "mode": "During hike",
     "summary": "Vyzeráš pripravený na ľahké tempo.",
     "scores": {
       "creativity": 7,
@@ -198,10 +175,23 @@ Response:
     },
     "badges": ["Svieži ťah"],
     "tips": ["Daj si vodu.", "Drž ľahké tempo."],
+    "prescription": {
+      "water": "Daj si pár dúškov vody.",
+      "food": "Ak energia padá, doplň niečo malé.",
+      "pace": "Drž ľahké tempo.",
+      "rest": "Pri únave si daj krátku pauzu.",
+      "sleep": "Večer dopraj telu spánok."
+    },
     "next_step": "Napij sa a pokračuj pokojne.",
     "challenge": "10 minút bez šprintu.",
     "killer_insight": "Ak máš spraviť len jednu vec: napi sa vody pred pokračovaním.",
-    "share_text": "VendyGoScan: energia 8/10."
+    "share_text": "VendyGoScan: energia 8/10.",
+    "adventure_card": {
+      "title": "Trail Check",
+      "subtitle": "Svieža energia na ľahké tempo.",
+      "vibe": "During hike",
+      "share_text": "VendyGoScan: energia 8/10."
+    }
   }
 }
 ```
