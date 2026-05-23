@@ -1,11 +1,23 @@
 import os
+from io import BytesIO
 
 import requests
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps
+
+try:
+    from pillow_heif import register_heif_opener
+except ImportError:
+    register_heif_opener = None
+
+if register_heif_opener:
+    register_heif_opener()
 
 DEFAULT_API_URL = "http://localhost:8000/analyze"
 PREVIEW_MAX_WIDTH = 420
+ANALYSIS_MAX_SIDE = 1280
+ANALYSIS_JPEG_QUALITY = 85
+API_TIMEOUT_SECONDS = 90
 ACTIVITY_MODES = [
     "Before hike",
     "During hike",
@@ -28,13 +40,34 @@ PROMPT_PRESETS = {
 
 def preview_image(uploaded_file, max_width: int = PREVIEW_MAX_WIDTH) -> Image.Image | None:
     try:
-        image = Image.open(uploaded_file)
+        image = ImageOps.exif_transpose(Image.open(uploaded_file))
         image.thumbnail((max_width, max_width), Image.Resampling.LANCZOS)
         return image.copy()
     except Exception:
         return None
     finally:
         uploaded_file.seek(0)
+
+
+def analysis_image_file(uploaded_file) -> tuple[str, bytes, str]:
+    original_bytes = uploaded_file.getvalue()
+    try:
+        image = ImageOps.exif_transpose(Image.open(uploaded_file))
+        image.thumbnail((ANALYSIS_MAX_SIDE, ANALYSIS_MAX_SIDE), Image.Resampling.LANCZOS)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=ANALYSIS_JPEG_QUALITY, optimize=True)
+        uploaded_file.seek(0)
+        return ("analysis.jpg", output.getvalue(), "image/jpeg")
+    except Exception:
+        uploaded_file.seek(0)
+        return (
+            getattr(uploaded_file, "name", "upload.jpg"),
+            original_bytes,
+            getattr(uploaded_file, "type", "image/jpeg"),
+        )
 
 
 def render_score(label: str, value: int) -> None:
@@ -317,13 +350,13 @@ if uploaded_image:
 
 analyze = st.button("Analyze", type="primary", disabled=uploaded_image is None, use_container_width=True)
 if analyze and uploaded_image:
-    files = {"image": (uploaded_image.name, uploaded_image.getvalue(), uploaded_image.type)}
+    files = {"image": analysis_image_file(uploaded_image)}
     prompt_parts = [PROMPT_PRESETS[preset_label], custom_prompt.strip()]
     combined_prompt = "\n".join(part for part in prompt_parts if part)
     data = {"prompt": combined_prompt, "mode": selected_mode}
     with st.spinner("Coach is checking the photo..."):
         try:
-            response = requests.post(api_url, files=files, data=data, timeout=30)
+            response = requests.post(api_url, files=files, data=data, timeout=API_TIMEOUT_SECONDS)
             response.raise_for_status()
             result = response.json()["result"]
             if isinstance(result, dict):

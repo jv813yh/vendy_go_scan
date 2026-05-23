@@ -2,6 +2,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.workflows.analyze_hiker import analyze_hiker
+from app.tools.gemini_tool import _log_model_event
 
 app = FastAPI(title="VendyGoScan", version="0.1.0")
 
@@ -31,6 +32,16 @@ async def analyze(
     image_bytes = await image.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+
+    _log_model_event(
+        {
+            "event": "analyze_request",
+            "content_type": image.content_type,
+            "image_bytes": len(image_bytes),
+            "mode": mode.strip(),
+            "has_prompt": bool(prompt.strip()),
+        }
+    )
 
     result = analyze_hiker(image_bytes, image.content_type, prompt.strip(), mode.strip())
     return {"result": result}
