@@ -161,6 +161,15 @@ Multipart form fields:
 - `prompt`: optional extra instruction for this photo
 - `mode`: optional activity mode; default is `During hike`
 
+Available modes:
+
+- `Before hike`
+- `During hike`
+- `After hike`
+- `Gym / training`
+- `Cottage / recovery`
+- `Chill / ordinary day`
+
 Response:
 
 ```json

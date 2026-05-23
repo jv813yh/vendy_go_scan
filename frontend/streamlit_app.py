@@ -12,6 +12,7 @@ ACTIVITY_MODES = [
     "After hike",
     "Gym / training",
     "Cottage / recovery",
+    "Chill / ordinary day",
 ]
 PROMPT_PRESETS = {
     "Default coach": "",
@@ -294,6 +295,12 @@ selected_mode = st.selectbox(
     "Activity mode",
     options=ACTIVITY_MODES,
     index=ACTIVITY_MODES.index("During hike"),
+)
+st.markdown(
+    '<div style="color:#c62828;font-weight:700;margin:0 0 12px 0;">'
+    'Recommended: choose the activity mode based on what you are doing right now.'
+    '</div>',
+    unsafe_allow_html=True,
 )
 
 uploaded_image = st.file_uploader(

@@ -20,6 +20,7 @@ VALID_MODES = {
     "After hike",
     "Gym / training",
     "Cottage / recovery",
+    "Chill / ordinary day",
 }
 
 load_dotenv()
@@ -108,6 +109,14 @@ def default_prescription(mode: str) -> dict[str, str]:
             "pace": "Tempo pokojné, dnes vyhráva regenerácia.",
             "rest": "Sadni si, vylož nohy a nechaj systém dobehnúť.",
             "sleep": "Dnes choď spať rozumne, zajtra sa ti nohy poďakujú.",
+        }
+    if mode == "Chill / ordinary day":
+        return {
+            "water": "Drž vodu po ruke a priebežne sa napi.",
+            "food": "Daj si normálne jedlo, nie iba náhodné zobkanie popri dni.",
+            "pace": "Tempo pokojné, stačí krátka prechádzka alebo ľahký pohyb.",
+            "rest": "Ak si unavený, daj si vedomú pauzu bez výčitiek.",
+            "sleep": "Večer to nenaťahuj zbytočne, spánok je dnešný upgrade.",
         }
     if mode == "After hike":
         return {
@@ -249,7 +258,8 @@ def ask_gemini_with_image(
         "Gym / training means controlled training, enough protein, hydration, and avoiding "
         "unnecessary fast carbohydrates unless quick energy is needed. Cottage / recovery "
         "means food, rest, playful cottage mood, optional beer or raspberry soft drink as "
-        "a joke/choice, and never pressuring alcohol.\n\n"
+        "a joke/choice, and never pressuring alcohol. Chill / ordinary day means normal daily "
+        "energy, mood, gentle movement, hydration, food rhythm, stress reset, and sleep hygiene.\n\n"
         "Return ONLY valid JSON, no markdown fences. All user-facing string values must "
         "be in Slovak. Schema:\n"
         "{\n"
