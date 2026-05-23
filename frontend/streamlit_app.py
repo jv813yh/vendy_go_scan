@@ -196,20 +196,20 @@ if analyze and uploaded_image:
                         "share_text": str(result),
                     }
                 )
-        except requests.RequestException:
+        except requests.RequestException as exc:
             render_analysis_card(
                 {
                     "summary": "Backend alebo model teraz neodpovedá, ale panika nie je tréningový plán.",
                     "scores": {"creativity": 4, "energy": 4, "focus": 5},
                     "badges": ["Offline", "Skús znova"],
                     "tips": [
-                        "Skontroluj, či beží backend na porte 8000.",
-                        "Ak Gemini hlási preťaženie, skús to o chvíľu znova.",
-                        "Medzitým: voda, nádych, výdych, ramená dole.",
+                        f"API endpoint: {api_url}",
+                        f"Detail chyby: {exc}",
+                        "Na Renderi má API endpoint zostať prázdny v env alebo byť http://127.0.0.1:8000/analyze.",
                     ],
-                    "next_step": "Reštartuj backend alebo stlač Analyze znova.",
+                    "next_step": "Skontroluj Render logs a redeployni posledný commit.",
                     "challenge": "30-sekundový reset: narovnaj sa a urob tri pokojné nádychy.",
-                    "killer_insight": "Ak máš spraviť len jednu vec: over, či beží backend na porte 8000.",
+                    "killer_insight": "Ak máš spraviť len jednu vec: pozri Render logs, či backend hlási 'FastAPI backend is ready.'",
                     "share_text": "VendyGoScan je dočasne offline. Skúsim znova.",
                 }
             )

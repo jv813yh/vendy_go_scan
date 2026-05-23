@@ -72,6 +72,8 @@ Render is a good weekend option because it can build this repo from the included
 
 The public Render URL opens the Streamlit app. Streamlit calls FastAPI inside the same container.
 
+You do **not** start the backend locally when using Render. Render runs the Docker container, and `scripts/start_render.sh` starts both FastAPI and Streamlit inside that container.
+
 ### Option A: Simple Render Deploy
 
 1. Push this repo to GitHub.
@@ -90,6 +92,21 @@ VENDYGOSCAN_LOG_DIR=logs
 6. Deploy.
 
 You do not need ngrok after Render deploys the app.
+
+Do not set `VENDYGOSCAN_API_URL` on Render unless you are debugging. If you set it, use:
+
+```env
+VENDYGOSCAN_API_URL=http://127.0.0.1:8000/analyze
+```
+
+If the frontend opens but analysis says the backend is offline, open Render **Logs** and look for:
+
+```text
+FastAPI backend is ready.
+Starting Streamlit frontend on port ...
+```
+
+If you do not see `FastAPI backend is ready.`, the backend crashed during startup and the Render logs should show the Python error.
 
 ### Option B: GitHub Actions + Render Deploy Hook
 
