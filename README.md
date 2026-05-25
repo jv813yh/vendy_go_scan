@@ -1,17 +1,66 @@
 # VendyGoScan
 
-Local MVP for uploading a hiker photo and receiving a short Slovak coach recommendation.
+What can you build in a 3-hour window before going hiking?
 
-## Recommended Models And Tools
+That was the starting point for VendyGoScan. On a Saturday morning, before a hike, I had a little time to experiment on the PC and wanted to build something we could actually use later that day on the trail. The result was a small AI coach app: upload a photo, choose the current activity mode, and get a practical Slovak recommendation for what to do next.
 
-- Gemini model: `gemini-2.5-flash` for the MVP because it supports multimodal image workflows.
+VendyGoScan is intentionally simple, but it tries to be more than a generic "upload photo to AI" demo. It wraps the model output into a coach-style product experience with activity modes, scores, practical prescriptions, challenges, and one clear next action.
+
+## What It Does
+
+- Upload a photo from desktop or mobile.
+- Choose an activity mode:
+  - `Before hike`
+  - `During hike`
+  - `After hike`
+  - `Gym / training`
+  - `Cottage / recovery`
+  - `Chill / ordinary day`
+- Get a coach-style result in Slovak:
+  - summary
+  - creativity / energy / focus scores
+  - badges
+  - practical tips
+  - water / food / pace / rest / sleep prescription
+  - next step
+  - small challenge
+  - "if you only do one thing" insight
+  - shareable adventure card
+
+## LinkedIn Story Angle
+
+This project is also a small build-in-public story:
+
+> What can you build in 3 hours before a hike?
+>
+> I had some time on Saturday morning, wanted to try a few AI/product ideas, and decided to build something we could actually use on the hike.
+>
+> So I built VendyGoScan: a small photo-based outdoor coach.
+>
+> The first version worked on desktop. Then mobile uploads caused issues. Then Render deployment needed fixes. Then image compression and model fallback became necessary.
+>
+> The lesson: AI makes the prototype fast, but real usage makes the product real.
+
+Useful screenshots for a LinkedIn post:
+
+- Upload screen with activity mode selector.
+- Photo preview.
+- Coach result card.
+- Prescription section.
+- Adventure card / killer insight.
+- Render/mobile view.
+
+## Stack
+
+- Gemini model: `gemini-2.5-flash`.
 - Fallback model: `gemini-2.5-flash-lite`.
 - Backend: FastAPI with `uvicorn`.
-- Frontend: Streamlit for a simple upload form.
+- Frontend: Streamlit.
 - Vision: OpenCV Haar cascades for a local hint only.
-- Gemini receives the uploaded image directly; local vision output is only extra context.
-- Prompt role: friendly outdoor trainer who checks visible face, posture, hands, legs, feet, mood, energy, clothing, environment, and overall readiness.
-- Weekend deploy: Render Docker web service.
+- Image handling: Pillow and `pillow-heif` for mobile photo support.
+- Deployment: Docker web service on Render.
+
+Gemini receives the uploaded image directly. Local vision output is only extra context.
 
 ## Setup
 
@@ -121,6 +170,17 @@ Open:
 http://localhost:8502
 ```
 
+## Mobile Notes
+
+The app is meant to work from a phone. Mobile photos can be large or uploaded as HEIC/HEIF, so the frontend converts uploaded photos to a smaller JPEG before sending them to the backend:
+
+- max side: `1280px`
+- JPEG quality: `85`
+- EXIF orientation is respected
+- original preview is resized on the page
+
+This avoids many Render/Gemini timeouts caused by huge phone images.
+
 ## Port Troubleshooting
 
 If a port is already used by another process, find the owner in PowerShell:
@@ -160,15 +220,6 @@ Multipart form fields:
 - `image`: jpg, jpeg, png, webp, heic, or heif
 - `prompt`: optional extra instruction for this photo
 - `mode`: optional activity mode; default is `During hike`
-
-Available modes:
-
-- `Before hike`
-- `During hike`
-- `After hike`
-- `Gym / training`
-- `Cottage / recovery`
-- `Chill / ordinary day`
 
 Response:
 
