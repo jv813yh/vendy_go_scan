@@ -31,6 +31,8 @@ VendyGoScan is intentionally simple, but it tries to be more than a generic "upl
 
 This project is also a small build-in-public story:
 
+LinkedIn post: https://www.linkedin.com/posts/jozefvendel_ai-buildinpublic-sideprojects-ugcPost-7464360243028795392-r6Cw/
+
 > What can you build in 3 hours before a hike?
 >
 > I had some time on Saturday morning, wanted to try a few AI/product ideas, and decided to build something we could actually use on the hike.
